@@ -18,10 +18,10 @@ use Hyn\Tenancy\Contracts\Repositories\HostnameRepository;
 use Hyn\Tenancy\Contracts\Repositories\WebsiteRepository;
 use Hyn\Tenancy\Database\Connection;
 use Hyn\Tenancy\Environment;
-use Hyn\Tenancy\Events\Websites\Identified;
 use Hyn\Tenancy\Models\Hostname;
 use Hyn\Tenancy\Models\Website;
 use Hyn\Tenancy\Traits\DispatchesEvents;
+use Illuminate\Support\Arr;
 
 trait InteractsWithTenancy
 {
@@ -73,9 +73,9 @@ trait InteractsWithTenancy
 
         $this->connection = app(Connection::class);
 
-        if ($this->connection->system()->getConfig('driver') !== 'pgsql') {
-            $this->connection->system()->beginTransaction();
-        }
+//        if ($this->connection->system()->getConfig('driver') !== 'pgsql') {
+//            $this->connection->system()->beginTransaction();
+//        }
 
         $this->handleTenantDestruction();
     }
@@ -93,7 +93,7 @@ trait InteractsWithTenancy
             }
         });
         Website::deleted(function (Website $website) {
-            array_forget($this->tenants, $website->uuid);
+            Arr::forget($this->tenants, $website->uuid);
         });
     }
 
@@ -175,7 +175,6 @@ trait InteractsWithTenancy
         $this->connection->purge();
 
         collect($this->tenants)
-            ->merge(compact('website', 'tenant'))
             ->filter()
             ->each(function ($website) {
                 $this->connection->set($website);
@@ -184,10 +183,12 @@ trait InteractsWithTenancy
                 $this->websites->delete($website, true);
             });
 
-        if ($this->connection->system()->getConfig('driver') !== 'pgsql') {
-            $this->connection->system()->rollback();
+        $system = $this->connection->system();
+
+        if ($system->getConfig('driver') !== 'pgsql' && $system->transactionLevel() > 0) {
+            $system->rollback();
         }
 
-        $this->connection->system()->disconnect();
+        $system->disconnect();
     }
 }

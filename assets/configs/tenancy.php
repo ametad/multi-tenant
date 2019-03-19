@@ -15,6 +15,11 @@
 use Hyn\Tenancy\Database\Connection;
 
 return [
+    /**
+     * Random key used for tenant database user password
+     */
+    'key' => env('TENANCY_KEY', env('APP_KEY')),
+
     'models' => [
         /**
          * Specify different models to be used for the global, system database
@@ -247,6 +252,19 @@ return [
         'auto-create-tenant-database-user' => true,
 
         /**
+         * Set of database privileges to give to the tenant database user.
+         *
+         * @info Useful in case your database restricts the privileges you
+         *       can set (for example AWS RDS).
+         * @info These privileges are only used in case tenant database users
+         *       are set to be created.
+         *
+         * @info null by default means "ALL PRIVILEGES". Override with a list
+         *       of privileges as a string, e.g. 'SELECT, UPDATE'.
+         */
+        'tenant-database-user-privileges' => null,
+
+        /**
          * Automatically rename the tenant database when the random id of the
          * website changes. This should not be too common, but in case it happens
          * we automatically want to move databases accordingly.
@@ -372,7 +390,7 @@ return [
         ],
         'views' => [
             /**
-             * Adds the vendor directory of the tenant inside the application.
+             * Enables reading views from tenant directories.
              */
             'enabled' => true,
 

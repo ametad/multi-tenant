@@ -14,20 +14,25 @@
 
 namespace Hyn\Tenancy\Tests\Database;
 
+use Doctrine\DBAL\Driver\PDOException;
+use Hyn\Tenancy\Commands\UpdateKeyCommand;
 use Hyn\Tenancy\Contracts\CurrentHostname;
+use Hyn\Tenancy\Environment;
 use Hyn\Tenancy\Providers\Tenants\ConnectionProvider;
 use Hyn\Tenancy\Tests\Extend\NonExtend;
 use Hyn\Tenancy\Tests\Test;
 use Illuminate\Database\Connection as DatabaseConnection;
+use Illuminate\Support\Str;
 
 class ConnectionTest extends Test
 {
     /**
      * @test
-     * @expectedException \InvalidArgumentException
      */
     public function without_identification_no_tenant_connection_is_active()
     {
+        $this->expectException(\InvalidArgumentException::class);
+
         $this->setUpHostnames(true);
 
         $this->connection->get();
@@ -87,11 +92,12 @@ class ConnectionTest extends Test
 
     /**
      * @test
-     * @expectedException InvalidArgumentException
-     * @expectedExceptionMessage Database [tenant] not configured.
      */
     public function override_to_tenant_connection()
     {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->expectExceptionMessage('Database [tenant] not configured.');
+
         config(['tenancy.db.force-tenant-connection-of-models' => [NonExtend::class]]);
 
         // Run the connection provider again to read this new model.
@@ -111,5 +117,34 @@ class ConnectionTest extends Test
         (new ConnectionProvider($this->app))->overrideConnectionResolvers();
 
         $this->assertEquals($this->connection->systemName(), (new NonExtend())->getConnection()->getName());
+    }
+
+    /**
+     * @test
+     */
+    public function can_rotate_tenant_key()
+    {
+        $this->setUpHostnames(true);
+        $this->setUpWebsites(true, true);
+        $this->activateTenant();
+
+        // Check that connection is established before rotating TENANCY_KEY
+        $this->assertTrue($this->connection->get() instanceof DatabaseConnection, 'Tenant connection is not set up properly.');
+
+        config(['tenancy.key' => Str::random()]);
+
+        // Re-establish connection and expect 1045 error code (Access denied for user)
+        app(Environment::class)->tenant($this->website);
+        try {
+            $this->connection->get()->reconnect();
+        } catch (PDOException $e) {
+            $this->assertTrue($e->getCode() === 1045 || $e->getCode() === 7, 'Access should be denied for tenant database user: [code: '.$e->getCode().'] '. $e->getMessage());
+        }
+
+        $this->artisan(UpdateKeyCommand::class);
+
+        // Re-establish connection after updating tenant users password
+        app(Environment::class)->tenant($this->website);
+        $this->connection->get()->reconnect();
     }
 }

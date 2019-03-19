@@ -1,3 +1,20 @@
+- 5.4.0
+    - Minimum requirement for PHP bumped to 7.2+.
+    - Minimum requirement for Laravel 5.8.
+    - Moved forcing app url to listener, so it applies to console and queue too.
+    - #651, ConfigurationLoading, -Loaded now know about current active tenant website.
+    - #660, allow configurable database privileges for tenant databases.
+    - #662, fixed website filter on commands.
+    - #706, issue with loading sequence of classes and especially singleton when app is not yet booted.
+    - #711, queue jobs are now always tenant aware, **TenantAwareJob has been removed**.
+    - #712, #639 improved hostname validation.
+    - #739, #574, allow APP_KEY rotation and using a custom key instead or none. This **introduces a new configuration tenancy.key**.
+    - Website related events now also contain hostname in case one was identified.
+    - Upgraded to phpunit 8.
+    - Several stability issues fixed.
+- 5.3.1
+    - #627, allowing custom database drivers.
+    - #636, fixed exit codes not being seeded in `tenancy:run` command.
 - 5.3.0
     - Laravel 5.7 compatibility.
     - Abort without hostname now set to false by default.

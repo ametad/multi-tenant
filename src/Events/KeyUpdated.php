@@ -12,20 +12,10 @@
  * @see https://github.com/hyn/multi-tenant
  */
 
-namespace Hyn\Tenancy\Traits;
+namespace Hyn\Tenancy\Events;
 
 use Hyn\Tenancy\Abstracts\AbstractEvent;
-use Illuminate\Contracts\Events\Dispatcher;
 
-trait DispatchesEvents
+class KeyUpdated extends AbstractEvent
 {
-    /**
-     * @param AbstractEvent $event
-     * @param array $payload
-     * @return array|null
-     */
-    public function emitEvent(AbstractEvent $event, array $payload = [])
-    {
-        return app(Dispatcher::class)->dispatch($event, $payload);
-    }
 }

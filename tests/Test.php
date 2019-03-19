@@ -22,6 +22,7 @@ use Hyn\Tenancy\Tests\Traits\InteractsWithTenancy;
 use Illuminate\Contracts\Console\Kernel;
 use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Foundation\Testing\TestCase;
+use Illuminate\Support\Facades\Queue;
 use Schema;
 
 class Test extends TestCase
@@ -88,7 +89,7 @@ class Test extends TestCase
         return $app;
     }
 
-    protected function setUp()
+    protected function setUp() : void
     {
         parent::setUp();
 
@@ -126,8 +127,9 @@ class Test extends TestCase
         // ..
     }
 
-    protected function tearDown()
+    protected function tearDown() : void
     {
+        Queue::createPayloadUsing(null);
         $this->cleanupTenancy();
         parent::tearDown();
     }

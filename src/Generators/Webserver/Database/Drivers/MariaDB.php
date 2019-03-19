@@ -15,6 +15,7 @@
 namespace Hyn\Tenancy\Generators\Webserver\Database\Drivers;
 
 use Hyn\Tenancy\Contracts\Webserver\DatabaseGenerator;
+use Hyn\Tenancy\Contracts\Website;
 use Hyn\Tenancy\Database\Connection;
 use Hyn\Tenancy\Events\Websites\Created;
 use Hyn\Tenancy\Events\Websites\Deleted;
@@ -22,6 +23,7 @@ use Hyn\Tenancy\Events\Websites\Updated;
 use Hyn\Tenancy\Exceptions\GeneratorFailedException;
 use Illuminate\Database\Connection as IlluminateConnection;
 use Illuminate\Support\Arr;
+use Illuminate\Support\Str;
 
 class MariaDB implements DatabaseGenerator
 {
@@ -49,7 +51,8 @@ class MariaDB implements DatabaseGenerator
         };
         $grant = function ($connection) use ($config, $createUser) {
             if ($createUser) {
-                return $connection->statement("GRANT ALL ON `{$config['database']}`.* TO `{$config['username']}`@'{$config['host']}'");
+                $privileges = config('tenancy.db.tenant-database-user-privileges', null) ?? 'ALL';
+                return $connection->statement("GRANT $privileges ON `{$config['database']}`.* TO `{$config['username']}`@'{$config['host']}'");
             }
 
             return true;
@@ -95,6 +98,7 @@ class MariaDB implements DatabaseGenerator
 
             return true;
         };
+
         $delete = function ($connection) use ($config) {
             return $connection->statement("DROP DATABASE IF EXISTS `{$config['database']}`");
         };
@@ -102,5 +106,32 @@ class MariaDB implements DatabaseGenerator
         return $connection->system($event->website)->transaction(function (IlluminateConnection $connection) use ($user, $delete) {
             return $delete($connection) && $user($connection);
         });
+    }
+
+    public function updatePassword(Website $website, array $config, Connection $connection): bool
+    {
+        $user = function (IlluminateConnection $connection) use ($config) {
+            if ($this->isMariaDb($connection)) {
+                return $connection->statement("UPDATE mysql.user SET Password=PASSWORD('{$config['password']}') WHERE User='{$config['username']}' AND Host='{$config['host']}'");
+            } else {
+                return $connection->statement("ALTER USER `{$config['username']}`@'{$config['host']}' IDENTIFIED BY '{$config['password']}'");
+            }
+        };
+
+        $flush = function (IlluminateConnection $connection) {
+            return $connection->statement('FLUSH PRIVILEGES');
+        };
+
+        return $connection->system($website)->transaction(function (IlluminateConnection $connection) use ($user, $flush) {
+            return $user($connection) && $flush($connection);
+        });
+    }
+
+    protected function isMariaDb(IlluminateConnection $connection): bool
+    {
+        $platform = $connection->getDoctrineSchemaManager()->getDatabasePlatform();
+        $reflect = new \ReflectionClass($platform);
+
+        return Str::startsWith($reflect->getShortName(), 'MariaDb');
     }
 }

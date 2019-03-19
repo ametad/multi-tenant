@@ -15,17 +15,17 @@
 namespace Hyn\Tenancy\Providers;
 
 use Hyn\Tenancy\Commands\RunCommand;
-use Hyn\Tenancy\Contracts;
-use Hyn\Tenancy\Listeners\Database\FlushHostnameCache;
-use Hyn\Tenancy\Environment;
-use Hyn\Tenancy\Repositories;
-use Illuminate\Contracts\Http\Kernel;
-use Illuminate\Support\ServiceProvider;
-use Hyn\Tenancy\Commands\InstallCommand;
 use Hyn\Tenancy\Commands\RecreateCommand;
+use Hyn\Tenancy\Commands\UpdateKeyCommand;
+use Hyn\Tenancy\Contracts;
+use Hyn\Tenancy\Environment;
+use Hyn\Tenancy\Listeners\Database\FlushHostnameCache;
+use Hyn\Tenancy\Repositories;
 use Hyn\Tenancy\Providers\Tenants as Providers;
 use Hyn\Tenancy\Contracts\Website as WebsiteContract;
 use Hyn\Tenancy\Contracts\Hostname as HostnameContract;
+use Illuminate\Contracts\Http\Kernel;
+use Illuminate\Support\ServiceProvider;
 
 class TenancyProvider extends ServiceProvider
 {
@@ -41,9 +41,16 @@ class TenancyProvider extends ServiceProvider
             'tenancy'
         );
 
-        $this->registerModels();
 
-        $this->registerRepositories();
+        $this->app->booted(function ($app) {
+            $app->singleton(Environment::class, function ($app) {
+                return new Environment($app);
+            });
+        });
+        $this->app->singleton(Contracts\Repositories\HostnameRepository::class, Repositories\HostnameRepository::class);
+        $this->app->singleton(Contracts\Repositories\WebsiteRepository::class, Repositories\WebsiteRepository::class);
+
+        $this->registerModels();
 
         $this->registerProviders();
 
@@ -53,8 +60,6 @@ class TenancyProvider extends ServiceProvider
     public function boot()
     {
         $this->bootCommands();
-
-        $this->bootEnvironment();
     }
 
     protected function registerModels()
@@ -67,18 +72,6 @@ class TenancyProvider extends ServiceProvider
         forward_static_call([$config['hostname'], 'observe'], FlushHostnameCache::class);
     }
 
-    protected function registerRepositories()
-    {
-        $this->app->singleton(
-            Contracts\Repositories\HostnameRepository::class,
-            Repositories\HostnameRepository::class
-        );
-        $this->app->singleton(
-            Contracts\Repositories\WebsiteRepository::class,
-            Repositories\WebsiteRepository::class
-        );
-    }
-
     protected function registerProviders()
     {
         $this->app->register(Providers\ConfigurationProvider::class);
@@ -89,6 +82,7 @@ class TenancyProvider extends ServiceProvider
         $this->app->register(Providers\FilesystemProvider::class);
         $this->app->register(Providers\HostnameProvider::class);
         $this->app->register(Providers\DatabaseDriverProvider::class);
+        $this->app->register(Providers\QueueProvider::class);
 
         // Register last.
         $this->app->register(Providers\EventProvider::class);
@@ -99,20 +93,9 @@ class TenancyProvider extends ServiceProvider
     {
         $this->commands([
             RecreateCommand::class,
-            RunCommand::class
+            RunCommand::class,
+            UpdateKeyCommand::class,
         ]);
-    }
-
-    protected function bootEnvironment()
-    {
-        // Immediately instantiate the object to work the magic.
-        $environment = $this->app->make(Environment::class);
-        // Now register it into ioc to make it globally available.
-        $this->app->singleton(Environment::class, function () use ($environment) {
-            return $environment;
-        });
-
-        $this->app->alias(Environment::class, 'tenancy-environment');
     }
 
     protected function registerMiddleware()
@@ -131,8 +114,8 @@ class TenancyProvider extends ServiceProvider
     {
         return [
             Environment::class,
-            Contracts\Tenant::class,
-            Contracts\CurrentHostname::class,
+            Contracts\Repositories\HostnameRepository::class,
+            Contracts\Repositories\WebsiteRepository::class,
         ];
     }
 }
